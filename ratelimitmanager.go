@@ -47,3 +47,36 @@ func (rm *RatelimitManager) IsRatelimited(id string) bool {
 
 	return newRl.updateCalls()
 }
+
+// TimeUntilReset returns the duration until the rate limit will reset for the given ID.
+// If the ID is not rate limited or doesn't exist, it returns 0.
+func (rm *RatelimitManager) TimeUntilReset(id string) time.Duration {
+	rl, ok := rm.rlMap[id]
+	if !ok {
+		return 0
+	}
+
+	currentTime := time.Now().UnixMilli()
+	if rl.isStale(currentTime) {
+		return 0
+	}
+
+	resetTime := rl.tf + rl.per
+	remainingTime := resetTime - currentTime
+	if remainingTime <= 0 {
+		return 0
+	}
+
+	return time.Duration(remainingTime) * time.Millisecond
+}
+
+// RemainingCalls returns the number of calls remaining for the given ID.
+// If the ID doesn't exist, it returns the maximum rate.
+func (rm *RatelimitManager) RemainingCalls(id string) int16 {
+	rl, ok := rm.rlMap[id]
+	if !ok {
+		return rm.Rate
+	}
+
+	return rl.remainingCalls(time.Now().UnixMilli())
+}
